@@ -1,0 +1,25 @@
+{
+  "name": "allelo-intro",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm run main-build && npm run worker-build",
+    "main-build": "rollup --config rollup.config.main.js",
+    "worker-build": "rollup --config rollup.config.az-worker.js",
+    "server": "http-server docs -o",
+    "test": "mocha --compilers js:babel-register"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "allelo-board": "git+https://github.com/new3Rs/allelo-board.git",
+    "az.js": "git+https://github.com/new3Rs/AZ.js.git",
+    "rollup": "^0.63.5"
+  },
+  "devDependencies": {
+    "http-server": "^0.11.1",
+    "rollup-plugin-commonjs": "^9.1.4",
+    "rollup-plugin-node-resolve": "^3.3.0"
+  }
+}
