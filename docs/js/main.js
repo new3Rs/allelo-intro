@@ -964,9 +964,108 @@ const problems = [
     {
         stoneSize: 100,
         width: 3,
-        height: 3
+        height: 3,
+        question: '茶色の地面の中に黒い点が並んでいます。どれかをタッチしてみましょう。',
+        answer: null,
+        explanation: 'お見事！タッチした場所に太い幹が成長して葉っぱがつきました。\n葉っぱは何枚つきましたか？場所によって4枚だったり3枚だったり2枚だったりします。'
+    },
+    {
+        question: 'さっきとは違う場所をタッチしてみましょう。',
+        answer: null,
+        explanation: '今度は明るい緑の幹と葉が生えましたね。アレロは濃い緑と明るい緑、２種類の植物が戦うゲームです。'
     }
 ];
+
+/**
+ * @file 音声合成のラッパー関数群です。
+ */
+/*
+ * @author 市川雄二
+ * @copyright 2017 ICHIKAWA, Yuji (New 3 Rs)
+ * @license MIT
+ */
+/* global i18n */
+
+/**
+ * @param {string} text
+ * @param {string} lang
+ * @param {string} gender
+ */
+function speak(text, lang, gender) {
+    if (!SpeechSynthesisUtterance)
+        return false;
+
+    switch (lang) {
+    case 'en':
+        lang = 'en-us';
+        break;
+    case 'ja':
+        lang = 'ja-jp';
+        break;
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (/(iPhone|iPad|iPod)(?=.*OS [7-8])/.test(navigator.userAgent))
+        utterance.rate = 0.2;
+    const voices = speechSynthesis.getVoices().filter(e => e.lang.toLowerCase() === lang);
+    let voice = null;
+    if (voices.length > 1) {
+        let names = null;
+        switch (lang) {
+        case 'ja-jp':
+            switch (gender) {
+            case 'male':
+                names = ['Otoya', 'Hattori', 'Ichiro'];
+                break;
+            case 'female':
+                names = ['O-ren（拡張）', 'O-ren', 'Kyoko', 'Haruka']; // Windows 10のAyumiの声は今ひとつ
+                break;
+            }
+            break;
+        case 'en-us':
+            switch (gender) {
+            case 'male':
+                names = ['Alex', 'Fred'];
+                break;
+            case 'female':
+                names = ['Samantha', 'Victoria'];
+                break;
+            }
+            break;
+        }
+        if (names) {
+            voice = voices.filter(v => names.some(n => v.name.indexOf(n) >= 0))[0];
+        }
+        if (!voice) {
+            voice = voices.filter(v => v.gender && v.gender.toLowerCase() === gender)[0];
+        }
+    }
+    utterance.voice = voice || voices[0];
+    // iOS 10 Safari has a bug that utterance.voice is no effect.
+    utterance.volume = parseFloat(localStorage.getItem('volume') || '1.0');
+    speechSynthesis.speak(utterance);
+    return true;
+}
+
+/**
+ * @private
+ */
+function unlock() {
+    window.removeEventListener('click', unlock);
+    speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+}
+
+
+window.addEventListener('load', function(event) {
+    if (speechSynthesis) {
+        speechSynthesis.getVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = function() {
+                console.log('onvoiceschanged');
+            };
+        }
+        window.addEventListener('click', unlock, false); // for iOS
+    }
+});
 
 /**
  * @file アプリのエントリーポイントです。
@@ -993,11 +1092,22 @@ async function drawPosition(board, position, move) {
 
 }
 function prepareProblem(problem) {
-    const container = document.querySelector('.container');
-    const board = document.createElement('allelo-board');
-    board.dataset.stoneSize = problem.stoneSize;
-    board.dataset.width = problem.width;
-    board.dataset.height = problem.height;
+    const balloon = document.querySelector('#text');
+    let board;
+    if (problem.stoneSize) {
+        const container = document.querySelector('#board-container');
+        board = document.querySelector('#board-container allelo-board');
+        if (board != null) {
+            board.remove();
+        }
+        board = document.createElement('allelo-board');
+        board.dataset.stoneSize = problem.stoneSize;
+        board.dataset.width = problem.width;
+        board.dataset.height = problem.height;
+        container.appendChild(board);
+    } else {
+        board = document.querySelector('#board-container allelo-board');
+    }
     const position = new GoPosition(problem.width, problem.height);
     board.alleloBoard.addEventListener('click', async function(x, y) {
         if (board.alleloBoard.drawing) {
@@ -1010,14 +1120,20 @@ function prepareProblem(problem) {
             return;
         }
         await drawPosition(board.alleloBoard, position, result);
+        balloon.innerText = problem.explanation;
+        speak(problem.explanation, 'ja', 'female');
+        console.log(document.querySelector('#next').style);
+        document.querySelector('#next').style.display = 'inline';
+        board.alleloBoard.removeEventListener('click');
     });
-    container.appendChild(board);
+    balloon.innerText = problem.question;
+    speak(problem.question, 'ja', 'female');
 }
 
-function main() {
-    for (const p of problems) {
-        prepareProblem(p);
+document.querySelector('#next').addEventListener('click', function() {
+    if (index < problems.length) {
+        prepareProblem(problems[index]);
     }
-}
-
-main();
+}, false);
+let index = 0;
+prepareProblem(problems[index++]);

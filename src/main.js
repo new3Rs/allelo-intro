@@ -8,6 +8,7 @@
  */
 import { GoPosition, BLACK, WHITE } from 'allelo-board';
 import { problems } from './problems.js';
+import { speak } from './speech.js';
 
 async function drawPosition(board, position, move) {
     function p2p(p) {
@@ -30,11 +31,22 @@ async function drawPosition(board, position, move) {
 
 }
 function prepareProblem(problem) {
-    const container = document.querySelector('.container');
-    const board = document.createElement('allelo-board');
-    board.dataset.stoneSize = problem.stoneSize;
-    board.dataset.width = problem.width;
-    board.dataset.height = problem.height;
+    const balloon = document.querySelector('#text');
+    let board;
+    if (problem.stoneSize) {
+        const container = document.querySelector('#board-container');
+        board = document.querySelector('#board-container allelo-board');
+        if (board != null) {
+            board.remove();
+        }
+        board = document.createElement('allelo-board');
+        board.dataset.stoneSize = problem.stoneSize;
+        board.dataset.width = problem.width;
+        board.dataset.height = problem.height;
+        container.appendChild(board);
+    } else {
+        board = document.querySelector('#board-container allelo-board');
+    }
     const position = new GoPosition(problem.width, problem.height);
     board.alleloBoard.addEventListener('click', async function(x, y) {
         if (board.alleloBoard.drawing) {
@@ -47,14 +59,20 @@ function prepareProblem(problem) {
             return;
         }
         await drawPosition(board.alleloBoard, position, result);
+        balloon.innerText = problem.explanation;
+        speak(problem.explanation, 'ja', 'female');
+        console.log(document.querySelector('#next').style);
+        document.querySelector('#next').style.display = 'inline';
+        board.alleloBoard.removeEventListener('click');
     });
-    container.appendChild(board);
+    balloon.innerText = problem.question;
+    speak(problem.question, 'ja', 'female');
 }
 
-function main() {
-    for (const p of problems) {
-        prepareProblem(p);
+document.querySelector('#next').addEventListener('click', function() {
+    if (index < problems.length) {
+        prepareProblem(problems[index]);
     }
-}
-
-main();
+}, false);
+let index = 0;
+prepareProblem(problems[index++]);
