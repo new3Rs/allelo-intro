@@ -1028,18 +1028,29 @@ const problems = [{
     width: 3,
     height: 3,
     question: '茶色の地面の中に黒い点が並んでいます。どれかをタッチしてみましょう。',
-    answer: null,
-    explanation: 'お見事！タッチした場所に太い幹が成長して葉っぱがつきました。\n葉っぱは何枚つきましたか？場所によって4枚だったり3枚だったり2枚だったりします。'
+    explanation: 'お見事！\nタッチした場所に太い幹が成長して葉っぱがつきました。\n葉っぱは何枚つきましたか？場所によって4枚だったり3枚だったり2枚だったりします。'
 }, {
     question: 'さっきとは違う場所をタッチしてみましょう。',
-    answer: null,
     explanation: '今度は明るい緑の幹と葉が生えましたね。アレロは、二人が濃い緑と明るい緑それぞれを担当して、２種類の植物を交互に植えて戦うゲームです。'
 }, {
-    question: '配置が変わりました。地面には濃い緑の幹が１つと明るい緑の幹が２つずつあります。左上の明るい緑には葉が一枚しか残っていません。次は濃い緑の番です。左上の明るい緑の最後の一枚の葉を濃い緑で消してみてください。',
+    question: '配置が変わりました。\n地面には濃い緑と明るい緑の幹がひとつずつあります。次は濃い緑の番です。既に植えてある濃い緑の上下左右のどこかに植えてみてください。',
+    blacks: [[2,2]],
+    whites: [[1,1]],
+    answer: [[1,2],[3,2],[2,1],[2,3]],
+    explanation: 'お見事！\n隣同士だと幹がくっつきくことに注意してください。ゲームの戦略を考えるのに大切な要素です。'
+}, {
+    question: 'また配置が変わりました。\n地面には濃い緑の幹がひとつと明るい緑の幹がふたつあります。左上の明るい緑には葉が一枚しか残っていません。\n次は濃い緑の番です。左上の明るい緑の最後の一枚の葉を濃い緑で消してみてください。',
     blacks: [[1,2]],
     whites: [[1,1],[3,3]],
-    answer: [2,1],
-    explanation: 'お見事！葉のなくなった明るい緑は枯れてしまい、濃い緑で囲われた場所には濃い緑の芽が出ました。最初は明るい緑が多かったのに濃い緑のほうが多くなりました。アレロは、こうして自分の色の緑を相手よりたくさん植えたほうが勝ちのゲームです。'
+    answer: [[2,1]],
+    explanation: 'お見事！\n葉のなくなった明るい緑は枯れてしまい、濃い緑で囲われた場所には濃い緑の芽が出ました。\n最初は明るい緑が多かったのに濃い緑のほうが多くなりました。\nアレロは、こうして自分の緑を相手よりたくさん植えたほうが勝ちのゲームです。'
+}, {
+    question: 'ではお友達とゲームをしてみましょう。\n地面をちょっと広くしました。',
+    stoneSize: 100,
+    width: 5,
+    height: 5,
+    obs: [[3,3]],
+    keep: true
 }];
 
 /**
@@ -1058,58 +1069,63 @@ const problems = [{
  * @param {string} gender
  */
 function speak(text, lang, gender) {
-    if (!SpeechSynthesisUtterance)
-        return false;
+    return new Promise(function(res, rej) {
+        if (!SpeechSynthesisUtterance) {
+            rej();
+            return;
+        }
 
-    switch (lang) {
-    case 'en':
-        lang = 'en-us';
-        break;
-    case 'ja':
-        lang = 'ja-jp';
-        break;
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (/(iPhone|iPad|iPod)(?=.*OS [7-8])/.test(navigator.userAgent))
-        utterance.rate = 0.2;
-    const voices = speechSynthesis.getVoices().filter(e => e.lang.toLowerCase() === lang);
-    let voice = null;
-    if (voices.length > 1) {
-        let names = null;
         switch (lang) {
-        case 'ja-jp':
-            switch (gender) {
-            case 'male':
-                names = ['Otoya', 'Hattori', 'Ichiro'];
-                break;
-            case 'female':
-                names = ['O-ren（拡張）', 'O-ren', 'Kyoko', 'Haruka']; // Windows 10のAyumiの声は今ひとつ
-                break;
-            }
+        case 'en':
+            lang = 'en-us';
             break;
-        case 'en-us':
-            switch (gender) {
-            case 'male':
-                names = ['Alex', 'Fred'];
-                break;
-            case 'female':
-                names = ['Samantha', 'Victoria'];
-                break;
-            }
+        case 'ja':
+            lang = 'ja-jp';
             break;
         }
-        if (names) {
-            voice = voices.filter(v => names.some(n => v.name.indexOf(n) >= 0))[0];
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (/(iPhone|iPad|iPod)(?=.*OS [7-8])/.test(navigator.userAgent))
+            utterance.rate = 0.2;
+        const voices = speechSynthesis.getVoices().filter(e => e.lang.toLowerCase() === lang);
+        let voice = null;
+        if (voices.length > 1) {
+            let names = null;
+            switch (lang) {
+            case 'ja-jp':
+                switch (gender) {
+                case 'male':
+                    names = ['Otoya', 'Hattori', 'Ichiro'];
+                    break;
+                case 'female':
+                    names = ['O-ren（拡張）', 'O-ren', 'Kyoko', 'Haruka']; // Windows 10のAyumiの声は今ひとつ
+                    break;
+                }
+                break;
+            case 'en-us':
+                switch (gender) {
+                case 'male':
+                    names = ['Alex', 'Fred'];
+                    break;
+                case 'female':
+                    names = ['Samantha', 'Victoria'];
+                    break;
+                }
+                break;
+            }
+            if (names) {
+                voice = voices.filter(v => names.some(n => v.name.indexOf(n) >= 0))[0];
+            }
+            if (!voice) {
+                voice = voices.filter(v => v.gender && v.gender.toLowerCase() === gender)[0];
+            }
         }
-        if (!voice) {
-            voice = voices.filter(v => v.gender && v.gender.toLowerCase() === gender)[0];
-        }
-    }
-    utterance.voice = voice || voices[0];
-    // iOS 10 Safari has a bug that utterance.voice is no effect.
-    utterance.volume = parseFloat(localStorage.getItem('volume') || '1.0');
-    speechSynthesis.speak(utterance);
-    return true;
+        utterance.voice = voice || voices[0];
+        // iOS 10 Safari has a bug that utterance.voice is no effect.
+        utterance.volume = parseFloat(localStorage.getItem('volume') || '1.0');
+        utterance.onend = res;
+        utterance.onerror = rej;
+        speechSynthesis.speak(utterance);
+    });
 }
 
 /**
@@ -1168,9 +1184,15 @@ async function prepareProblem(problem) {
     const balloon = document.querySelector('#text');
     const container = document.querySelector('#board-container');
     board = document.querySelector('#board-container allelo-board');
-    if (board == null) {
+    if (board == null || problem.stoneSize || problem.width || problem.height) {
+        if (board) {
+            board.remove();
+        }
         board = document.createElement('allelo-board');
         container.appendChild(board);
+        if (problem.width && problem.height) {
+            position = new GoPosition(problem.width, problem.height);
+        }
     }
     if (problem.stoneSize) {
         board.dataset.stoneSize = problem.stoneSize;
@@ -1180,9 +1202,6 @@ async function prepareProblem(problem) {
     }
     if (problem.height) {
         board.dataset.height = problem.height;
-    }
-    if (problem.stoneSize || problem.width || problem.height) {
-        position = new GoPosition(problem.width, problem.height);
     }
     if (problem.blacks || problem.whites) {
         position.clear();
@@ -1202,37 +1221,51 @@ async function prepareProblem(problem) {
         position.turn = problem.turn;
     }
 
-    balloon.innerText = problem.question;
-    speak(problem.question, 'ja', 'female');
-    if (problem.explanation == null) {
+    if (!problem.keep && problem.explanation == null) {
         document.querySelector('#next').style.display = 'inline';
     } else {
+        document.querySelector('#next').style.display = 'none';
         board.alleloBoard.addEventListener('click', async function(x, y) {
+            async function tryAgain() {
+                speechSynthesis.cancel();
+                const text = '残念。もう一度挑戦してください。';
+                balloon.innerText = text;
+                try {
+                    await speak(text, 'ja', 'female');
+                } catch (e) {}
+                await prepareProblem(problem);
+            }
             if (board.alleloBoard.drawing) {
                 return;
             }
-            board.alleloBoard.removeEventListener('click');
+            if (!problem.keep) {
+                board.alleloBoard.removeEventListener('click');
+            }
             const index = position.xyToPoint(x, y);
             const result = position.play(index);
             if (!result) {
-                alert('illegal');
+                if (!problem.keep) {
+                    await tryAgain();
+                }
                 return;
             }
             await drawPosition(board.alleloBoard, position, result);
-            if (!problem.answer || (problem.answer[0] == x && problem.answer[1] == y)) {
+            if (!problem.answer || (problem.answer.some(e => e[0] == x && e[1] == y))) {
+                speechSynthesis.cancel();
                 balloon.innerText = problem.explanation;
-                speechSynthesis.cancel();
-                speak(problem.explanation, 'ja', 'female');
                 document.querySelector('#next').style.display = 'inline';
-            } else {
-                const text = '残念。もう一度挑戦してください。';
-                balloon.innerText = text;
-                speechSynthesis.cancel();
-                speak(text, 'ja', 'female');
-                await prepareProblem(problem);
+                try {
+                    await speak(problem.explanation, 'ja', 'female');
+                } catch (e) {}
+            } else if (!problem.keep) {
+                await tryAgain();
             }
         });
     }
+    balloon.innerText = problem.question;
+    try {
+        await speak(problem.question, 'ja', 'female');
+    } catch (e) {}
 }
 
 document.querySelector('#next').addEventListener('click', async function() {

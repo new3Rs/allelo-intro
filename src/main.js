@@ -41,9 +41,15 @@ async function prepareProblem(problem) {
     const balloon = document.querySelector('#text');
     const container = document.querySelector('#board-container');
     board = document.querySelector('#board-container allelo-board');
-    if (board == null) {
+    if (board == null || problem.stoneSize || problem.width || problem.height) {
+        if (board) {
+            board.remove();
+        }
         board = document.createElement('allelo-board');
         container.appendChild(board);
+        if (problem.width && problem.height) {
+            position = new GoPosition(problem.width, problem.height);
+        }
     }
     if (problem.stoneSize) {
         board.dataset.stoneSize = problem.stoneSize;
@@ -53,9 +59,6 @@ async function prepareProblem(problem) {
     }
     if (problem.height) {
         board.dataset.height = problem.height;
-    }
-    if (problem.stoneSize || problem.width || problem.height) {
-        position = new GoPosition(problem.width, problem.height);
     }
     if (problem.blacks || problem.whites) {
         position.clear();
@@ -75,37 +78,51 @@ async function prepareProblem(problem) {
         position.turn = problem.turn;
     }
 
-    balloon.innerText = problem.question;
-    speak(problem.question, 'ja', 'female');
-    if (problem.explanation == null) {
+    if (!problem.keep && problem.explanation == null) {
         document.querySelector('#next').style.display = 'inline';
     } else {
+        document.querySelector('#next').style.display = 'none';
         board.alleloBoard.addEventListener('click', async function(x, y) {
+            async function tryAgain() {
+                speechSynthesis.cancel();
+                const text = '残念。もう一度挑戦してください。';
+                balloon.innerText = text
+                try {
+                    await speak(text, 'ja', 'female');
+                } catch (e) {}
+                await prepareProblem(problem);
+            }
             if (board.alleloBoard.drawing) {
                 return;
             }
-            board.alleloBoard.removeEventListener('click');
+            if (!problem.keep) {
+                board.alleloBoard.removeEventListener('click');
+            }
             const index = position.xyToPoint(x, y);
             const result = position.play(index);
             if (!result) {
-                alert('illegal');
+                if (!problem.keep) {
+                    await tryAgain();
+                }
                 return;
             }
             await drawPosition(board.alleloBoard, position, result);
-            if (!problem.answer || (problem.answer[0] == x && problem.answer[1] == y)) {
+            if (!problem.answer || (problem.answer.some(e => e[0] == x && e[1] == y))) {
+                speechSynthesis.cancel();
                 balloon.innerText = problem.explanation;
-                speechSynthesis.cancel();
-                speak(problem.explanation, 'ja', 'female');
                 document.querySelector('#next').style.display = 'inline';
-            } else {
-                const text = '残念。もう一度挑戦してください。';
-                balloon.innerText = text
-                speechSynthesis.cancel();
-                speak(text, 'ja', 'female');
-                await prepareProblem(problem);
+                try {
+                    await speak(problem.explanation, 'ja', 'female');
+                } catch (e) {}
+            } else if (!problem.keep) {
+                await tryAgain();
             }
         });
     }
+    balloon.innerText = problem.question;
+    try {
+        await speak(problem.question, 'ja', 'female');
+    } catch (e) {}
 }
 
 document.querySelector('#next').addEventListener('click', async function() {
