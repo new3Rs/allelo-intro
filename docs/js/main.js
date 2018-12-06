@@ -54,6 +54,12 @@ class GoPosition {
         this.ko = null;
     }
 
+    clear() {
+        this.state = new Uint8Array(this.LENGTH);
+        this.turn = BLACK;
+        this.ko = null;
+    }
+
     opponent() {
         return opponentOf(this.turn);
     }
@@ -557,73 +563,78 @@ class AlleloBoard {
      */
     async drawStone(boardState, color, addIndex, removeIndices = []) {
         this.drawing = true;
-        const INTERVAL = 500; // ms
-        const gl = this.gl;
-        const b = boardState.slice();
-        if (removeIndices.includes(addIndex)) {
-            for (const e of removeIndices) {
-                b[e] = color;
+        try {
+            const INTERVAL = 500; // ms
+            const gl = this.gl;
+            const b = boardState.slice();
+            if (removeIndices.includes(addIndex)) {
+                for (const e of removeIndices) {
+                    b[e] = color;
+                }
+            } else {
+                const opponentColor = -color;
+                for (const e of removeIndices) {
+                    b[e] = opponentColor;
+                }
             }
-        } else {
-            const opponentColor = -color;
-            for (const e of removeIndices) {
-                b[e] = opponentColor;
+            if (addIndex != null) {
+                await new Promise((res, rej) => {
+                    const start = Date.now();
+                    const grow = () => {
+                        const dataToSendToGPU = new Float32Array(b.length);
+                        const interval = Date.now() - start;
+                        const addStone = this.stoneSize / 2 * Math.min(interval / INTERVAL, 1.0);
+                        for (let i = 0; i < b.length; i++) {
+                            dataToSendToGPU[i] = b[i] * (i === addIndex ? addStone : this.stoneSize / 2);
+                        }
+                        gl.uniform1fv(this.stonesHandle, dataToSendToGPU);
+                        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                        if (interval <= INTERVAL) {
+                            requestAnimationFrame(grow);
+                        } else {
+                            res();
+                        }
+                    };
+                    grow();
+                });
+            } else {
+                const dataToSendToGPU = new Float32Array(b.length);
+                for (let i = 0; i < b.length; i++) {
+                    dataToSendToGPU[i] = b[i] * this.stoneSize / 2;
+                }
+                gl.uniform1fv(this.stonesHandle, dataToSendToGPU);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             }
-        }
-        if (addIndex != null) {
-            await new Promise((res, rej) => {
-                const start = Date.now();
-                const grow = () => {
-                    const dataToSendToGPU = new Float32Array(b.length);
-                    const interval = Date.now() - start;
-                    const addStone = this.stoneSize / 2 * Math.min(interval / INTERVAL, 1.0);
-                    for (let i = 0; i < b.length; i++) {
-                        dataToSendToGPU[i] = b[i] * (i === addIndex ? addStone : this.stoneSize / 2);
-                    }
-                    gl.uniform1fv(this.stonesHandle, dataToSendToGPU);
-                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-                    if (interval <= INTERVAL) {
-                        requestAnimationFrame(grow);
-                    } else {
-                        res();
-                    }
-                };
-                grow();
-            });
-        } else {
-            const dataToSendToGPU = new Float32Array(b.length);
-            for (let i = 0; i < b.length; i++) {
-                dataToSendToGPU[i] = b[i] * this.stoneSize / 2;
+            this.updateLeaves(boardState);
+            this.updateTerritory(boardState);
+            if (removeIndices.length > 0) {
+                await new Promise((res, rej) => {
+                    const start = Date.now();
+                    const decline = () => {
+                        // To send the data to the GPU, we first need to
+                        // flatten our data into a single array.
+                        const dataToSendToGPU = new Float32Array(b.length);
+                        const interval = Date.now() - start;
+                        const removedStone = this.stoneSize / 2 * Math.max((INTERVAL - interval) / INTERVAL, 0.0);
+                        for (let i = 0; i < b.length; i++) {
+                            dataToSendToGPU[i] = b[i] * (removeIndices.includes(i) ? removedStone : this.stoneSize / 2);
+                        }
+                        gl.uniform1fv(this.stonesHandle, dataToSendToGPU);
+                        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                        if (interval <= INTERVAL) {
+                            requestAnimationFrame(decline);
+                        } else {
+                            res();
+                        }
+                    };
+                    decline();
+                });
             }
-            gl.uniform1fv(this.stonesHandle, dataToSendToGPU);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            this.drawing = false;
         }
-        this.updateLeaves(boardState);
-        this.updateTerritory(boardState);
-        if (removeIndices.length > 0) {
-            await new Promise((res, rej) => {
-                const start = Date.now();
-                const decline = () => {
-                    // To send the data to the GPU, we first need to
-                    // flatten our data into a single array.
-                    const dataToSendToGPU = new Float32Array(b.length);
-                    const interval = Date.now() - start;
-                    const removedStone = this.stoneSize / 2 * Math.max((INTERVAL - interval) / INTERVAL, 0.0);
-                    for (let i = 0; i < b.length; i++) {
-                        dataToSendToGPU[i] = b[i] * (removeIndices.includes(i) ? removedStone : this.stoneSize / 2);
-                    }
-                    gl.uniform1fv(this.stonesHandle, dataToSendToGPU);
-                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-                    if (interval <= INTERVAL) {
-                        requestAnimationFrame(decline);
-                    } else {
-                        res();
-                    }
-                };
-                decline();
-            });
-        }
-        this.drawing = false;
     }
 
     updateLeaves(boardState) {
@@ -724,6 +735,62 @@ class AlleloBoard {
 
 class AlleloBoardElement extends HTMLElement {
     static init() {
+        /*
+         * Shadow DOM内のhrefのfragmentの解決は仕様で決まっておらず、
+         * Chrome 68はshadow DOM内のidを参照、
+         * Firefox 61はグローバル DOMのidを参照、
+         * Safariは解決を未実装
+         * 以下は、Firefox用ワークアラウンド。グローバルにdefsを追加。
+         */
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        defs.setAttributeNS(null, 'version', '1.1');
+        defs.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        defs.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+        defs.setAttribute('width', '0');
+        defs.setAttribute('height', '0');
+        defs.innerHTML = `
+<defs>
+    <path id="two-leaves" d="M196.036,292.977c-16.781-18.297,21.344-105.25-166.266-192.188c-33.563,6.094-79.328,160.156,118.984,212.031
+    c65.594,21.344,57.969,94.563,57.969,122.016h38.125c0,0-15.594-87.094,54.078-119.016
+    c47.406-21.688,178.328-28.656,213.078-224.281c-66.234-38.313-281.625-7.75-276.266,186.313
+    c-3.141,27.297-4.703,50.422-19.875,44.109C197.567,314.336,196.036,292.977,196.036,292.977z" opacity="0.5" />
+</defs>
+<defs>
+    <g id="seedlings">
+        <use xlink:href="#two-leaves" transform="translate(-80,-80) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(-15,-80) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(55,-80) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(120,-80) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(-60,-15) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(15,-15) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(75,-15) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(140,-15) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(-80,55) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(-15,55) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(55,55) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(120,55) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(-60,120) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(15,120) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(75,120) scale(0.07,0.07)"></use>
+        <use xlink:href="#two-leaves" transform="translate(140,120) scale(0.07,0.07)"></use>
+    </g>
+</defs>
+<defs>
+    <path
+    id="leaf"
+    d="m 0,-145 c -5.36199,-1.5478604 -14.21002,-8.6465004 -15.2827,-22.05113 -1.07198,-13.40533 13.94132,-32.17336 16.35468,-37.80264 2.41335,-5.63069 5.89798,0.53528 10.72469,5.36199 4.826,4.82601 31.099959,32.70794 -3.21876,54.1573096 -2.1991,1.3477504 -2.12414,2.5074104 -1.84201,5.7565604 0.4773,5.48079 1.34068,4.67681 0.86479,5.39169 -0.94116,1.41068 -4.76802,1.98344 -4.7666,0.4773 -0.001,-8.58004 -3.771,-25.1482604 -0.50983,-37.92426 4.29002,-16.80157 1.5521,-19.18452 1.5521,-19.18452 0,0 -1.6617,10.93895 -3.51856,18.29286 -4.46821,17.69534958 -0.3578,27.52484 -0.3578,27.52484 z"/>
+</defs>
+<defs>
+    <g id="four-leaves">
+        <use xlink:href="#leaf" transform="rotate(0)" />
+        <use xlink:href="#leaf" transform="rotate(90)" />
+        <use xlink:href="#leaf" transform="rotate(180)" />
+        <use xlink:href="#leaf" transform="rotate(270)" />
+    </g>
+</defs>
+`;
+        document.body.appendChild(defs);
+        // ワークアラウンド終わり
         this.prototype.template = document.createElement('template');
         this.prototype.template.id = 'allelo-board';
         this.prototype.template.innerHTML = `
@@ -746,15 +813,19 @@ class AlleloBoardElement extends HTMLElement {
         position: absolute;
         top: 0px;
     }
+    svg * {
+        width: 100%;
+        height: 100%;
+    }
 </style>
 <div class="container">
     <canvas id="goban"></canvas>
     <svg id="territory" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
         <defs>
             <path id="two-leaves" d="M196.036,292.977c-16.781-18.297,21.344-105.25-166.266-192.188c-33.563,6.094-79.328,160.156,118.984,212.031
-    		c65.594,21.344,57.969,94.563,57.969,122.016h38.125c0,0-15.594-87.094,54.078-119.016
-    		c47.406-21.688,178.328-28.656,213.078-224.281c-66.234-38.313-281.625-7.75-276.266,186.313
-	    	c-3.141,27.297-4.703,50.422-19.875,44.109C197.567,314.336,196.036,292.977,196.036,292.977z" opacity="0.5" />
+            c65.594,21.344,57.969,94.563,57.969,122.016h38.125c0,0-15.594-87.094,54.078-119.016
+            c47.406-21.688,178.328-28.656,213.078-224.281c-66.234-38.313-281.625-7.75-276.266,186.313
+            c-3.141,27.297-4.703,50.422-19.875,44.109C197.567,314.336,196.036,292.977,196.036,292.977z" opacity="0.5" />
         </defs>
         <defs>
             <g id="seedlings">
@@ -777,7 +848,7 @@ class AlleloBoardElement extends HTMLElement {
             </g>
         </defs>
     </svg>
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="leaves">
+    <svg id="leaves" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
         <defs>
             <path
             id="leaf"
@@ -785,22 +856,10 @@ class AlleloBoardElement extends HTMLElement {
         </defs>
         <defs>
             <g id="four-leaves">
-                <use
-                xlink:href="#leaf"
-                transform="rotate(0)" 
-                />
-                <use
-                xlink:href="#leaf"
-                transform="rotate(90)" 
-                />
-                <use
-                xlink:href="#leaf"
-                transform="rotate(180)" 
-                />
-                <use
-                xlink:href="#leaf"
-                transform="rotate(270)" 
-                />
+                <use xlink:href="#leaf" transform="rotate(0)" />
+                <use xlink:href="#leaf" transform="rotate(90)" />
+                <use xlink:href="#leaf" transform="rotate(180)" />
+                <use xlink:href="#leaf" transform="rotate(270)" />
             </g>
         </defs>
     </svg>
@@ -848,7 +907,9 @@ class AlleloBoardElement extends HTMLElement {
         }
         float alpha = float(b > 1.0 || w > 1.0);
         float white = float(w > 1.0);
-        gl_FragColor = vec4(0.0, white + 0.3, 0.0, alpha);
+        // gl_FragColor = vec4(0.0, white + 0.3, 0.0, alpha);
+        // Firefox 61はalphaが0でも色が透過に影響するのでそのワークアラウンドでalphaを色にも掛ける。
+        gl_FragColor = vec4(0.0, (white + 0.3) * alpha, 0.0, alpha);
     }
 </script>
 `;
@@ -960,21 +1021,26 @@ class AlleloBoardElement extends HTMLElement {
 
 AlleloBoardElement.init();
 
-const problems = [
-    {
-        stoneSize: 100,
-        width: 3,
-        height: 3,
-        question: '茶色の地面の中に黒い点が並んでいます。どれかをタッチしてみましょう。',
-        answer: null,
-        explanation: 'お見事！タッチした場所に太い幹が成長して葉っぱがつきました。\n葉っぱは何枚つきましたか？場所によって4枚だったり3枚だったり2枚だったりします。'
-    },
-    {
-        question: 'さっきとは違う場所をタッチしてみましょう。',
-        answer: null,
-        explanation: '今度は明るい緑の幹と葉が生えましたね。アレロは濃い緑と明るい緑、２種類の植物が戦うゲームです。'
-    }
-];
+const problems = [{
+    question: 'こんにちは！'
+}, {
+    stoneSize: 100,
+    width: 3,
+    height: 3,
+    question: '茶色の地面の中に黒い点が並んでいます。どれかをタッチしてみましょう。',
+    answer: null,
+    explanation: 'お見事！タッチした場所に太い幹が成長して葉っぱがつきました。\n葉っぱは何枚つきましたか？場所によって4枚だったり3枚だったり2枚だったりします。'
+}, {
+    question: 'さっきとは違う場所をタッチしてみましょう。',
+    answer: null,
+    explanation: '今度は明るい緑の幹と葉が生えましたね。アレロは、二人が濃い緑と明るい緑それぞれを担当して、２種類の植物を交互に植えて戦うゲームです。'
+}, {
+    question: '配置が変わりました。地面には濃い緑の幹が１つと明るい緑の幹が２つずつあります。左上の明るい緑には葉が一枚しか残っていません。次は濃い緑の番です。左上の明るい緑の最後の一枚の葉を濃い緑で消してみてください。',
+    blacks: [[1,2]],
+    whites: [[1,1],[3,3]],
+    answer: [2,1],
+    explanation: 'お見事！葉のなくなった明るい緑は枯れてしまい、濃い緑で囲われた場所には濃い緑の芽が出ました。最初は明るい緑が多かったのに濃い緑のほうが多くなりました。アレロは、こうして自分の色の緑を相手よりたくさん植えたほうが勝ちのゲームです。'
+}];
 
 /**
  * @file 音声合成のラッパー関数群です。
@@ -1088,52 +1154,92 @@ async function drawPosition(board, position, move) {
             state[i] = 0.0;
         }
     }
-    await board.drawStone(state, move.turn === BLACK ? 1.0 : -1.0, p2p(move.point), move.captives.map(p2p));
-
-}
-function prepareProblem(problem) {
-    const balloon = document.querySelector('#text');
-    let board;
-    if (problem.stoneSize) {
-        const container = document.querySelector('#board-container');
-        board = document.querySelector('#board-container allelo-board');
-        if (board != null) {
-            board.remove();
-        }
-        board = document.createElement('allelo-board');
-        board.dataset.stoneSize = problem.stoneSize;
-        board.dataset.width = problem.width;
-        board.dataset.height = problem.height;
-        container.appendChild(board);
+    if (move) {
+        await board.drawStone(state, move.turn === BLACK ? 1.0 : -1.0, p2p(move.point), move.captives.map(p2p));
     } else {
-        board = document.querySelector('#board-container allelo-board');
+        await board.drawStone(state, 1.0);
     }
-    const position = new GoPosition(problem.width, problem.height);
-    board.alleloBoard.addEventListener('click', async function(x, y) {
-        if (board.alleloBoard.drawing) {
-            return;
+}
+
+let board;
+let position;
+
+async function prepareProblem(problem) {
+    const balloon = document.querySelector('#text');
+    const container = document.querySelector('#board-container');
+    board = document.querySelector('#board-container allelo-board');
+    if (board == null) {
+        board = document.createElement('allelo-board');
+        container.appendChild(board);
+    }
+    if (problem.stoneSize) {
+        board.dataset.stoneSize = problem.stoneSize;
+    }
+    if (problem.width) {
+        board.dataset.width = problem.width;
+    }
+    if (problem.height) {
+        board.dataset.height = problem.height;
+    }
+    if (problem.stoneSize || problem.width || problem.height) {
+        position = new GoPosition(problem.width, problem.height);
+    }
+    if (problem.blacks || problem.whites) {
+        position.clear();
+        if (problem.blacks) {
+            for (const p of problem.blacks) {
+                position.setState(position.xyToPoint(p[0], p[1]), BLACK);
+            }
         }
-        const index = position.xyToPoint(x, y);
-        const result = position.play(index);
-        if (!result) {
-            alert('illegal');
-            return;
+        if (problem.whites) {
+            for (const p of problem.whites) {
+                position.setState(position.xyToPoint(p[0], p[1]), WHITE);
+            }
         }
-        await drawPosition(board.alleloBoard, position, result);
-        balloon.innerText = problem.explanation;
-        speak(problem.explanation, 'ja', 'female');
-        console.log(document.querySelector('#next').style);
-        document.querySelector('#next').style.display = 'inline';
-        board.alleloBoard.removeEventListener('click');
-    });
+        await drawPosition(board.alleloBoard, position);
+    }
+    if (problem.turn) {
+        position.turn = problem.turn;
+    }
+
     balloon.innerText = problem.question;
     speak(problem.question, 'ja', 'female');
+    if (problem.explanation == null) {
+        document.querySelector('#next').style.display = 'inline';
+    } else {
+        board.alleloBoard.addEventListener('click', async function(x, y) {
+            if (board.alleloBoard.drawing) {
+                return;
+            }
+            board.alleloBoard.removeEventListener('click');
+            const index = position.xyToPoint(x, y);
+            const result = position.play(index);
+            if (!result) {
+                alert('illegal');
+                return;
+            }
+            await drawPosition(board.alleloBoard, position, result);
+            if (!problem.answer || (problem.answer[0] == x && problem.answer[1] == y)) {
+                balloon.innerText = problem.explanation;
+                speechSynthesis.cancel();
+                speak(problem.explanation, 'ja', 'female');
+                document.querySelector('#next').style.display = 'inline';
+            } else {
+                const text = '残念。もう一度挑戦してください。';
+                balloon.innerText = text;
+                speechSynthesis.cancel();
+                speak(text, 'ja', 'female');
+                await prepareProblem(problem);
+            }
+        });
+    }
 }
 
-document.querySelector('#next').addEventListener('click', function() {
-    if (index < problems.length) {
-        prepareProblem(problems[index]);
+document.querySelector('#next').addEventListener('click', async function() {
+    speechSynthesis.cancel();
+    if (index < problems.length - 1) {
+        await prepareProblem(problems[++index]);
     }
 }, false);
 let index = 0;
-prepareProblem(problems[index++]);
+prepareProblem(problems[index]);

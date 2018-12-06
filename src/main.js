@@ -27,52 +27,92 @@ async function drawPosition(board, position, move) {
             state[i] = 0.0;
         }
     }
-    await board.drawStone(state, move.turn === BLACK ? 1.0 : -1.0, p2p(move.point), move.captives.map(p2p));
-
-}
-function prepareProblem(problem) {
-    const balloon = document.querySelector('#text');
-    let board;
-    if (problem.stoneSize) {
-        const container = document.querySelector('#board-container');
-        board = document.querySelector('#board-container allelo-board');
-        if (board != null) {
-            board.remove();
-        }
-        board = document.createElement('allelo-board');
-        board.dataset.stoneSize = problem.stoneSize;
-        board.dataset.width = problem.width;
-        board.dataset.height = problem.height;
-        container.appendChild(board);
+    if (move) {
+        await board.drawStone(state, move.turn === BLACK ? 1.0 : -1.0, p2p(move.point), move.captives.map(p2p));
     } else {
-        board = document.querySelector('#board-container allelo-board');
+        await board.drawStone(state, 1.0);
     }
-    const position = new GoPosition(problem.width, problem.height);
-    board.alleloBoard.addEventListener('click', async function(x, y) {
-        if (board.alleloBoard.drawing) {
-            return;
+}
+
+let board;
+let position;
+
+async function prepareProblem(problem) {
+    const balloon = document.querySelector('#text');
+    const container = document.querySelector('#board-container');
+    board = document.querySelector('#board-container allelo-board');
+    if (board == null) {
+        board = document.createElement('allelo-board');
+        container.appendChild(board);
+    }
+    if (problem.stoneSize) {
+        board.dataset.stoneSize = problem.stoneSize;
+    }
+    if (problem.width) {
+        board.dataset.width = problem.width;
+    }
+    if (problem.height) {
+        board.dataset.height = problem.height;
+    }
+    if (problem.stoneSize || problem.width || problem.height) {
+        position = new GoPosition(problem.width, problem.height);
+    }
+    if (problem.blacks || problem.whites) {
+        position.clear();
+        if (problem.blacks) {
+            for (const p of problem.blacks) {
+                position.setState(position.xyToPoint(p[0], p[1]), BLACK);
+            }
         }
-        const index = position.xyToPoint(x, y);
-        const result = position.play(index);
-        if (!result) {
-            alert('illegal');
-            return;
+        if (problem.whites) {
+            for (const p of problem.whites) {
+                position.setState(position.xyToPoint(p[0], p[1]), WHITE);
+            }
         }
-        await drawPosition(board.alleloBoard, position, result);
-        balloon.innerText = problem.explanation;
-        speak(problem.explanation, 'ja', 'female');
-        console.log(document.querySelector('#next').style);
-        document.querySelector('#next').style.display = 'inline';
-        board.alleloBoard.removeEventListener('click');
-    });
+        await drawPosition(board.alleloBoard, position);
+    }
+    if (problem.turn) {
+        position.turn = problem.turn;
+    }
+
     balloon.innerText = problem.question;
     speak(problem.question, 'ja', 'female');
+    if (problem.explanation == null) {
+        document.querySelector('#next').style.display = 'inline';
+    } else {
+        board.alleloBoard.addEventListener('click', async function(x, y) {
+            if (board.alleloBoard.drawing) {
+                return;
+            }
+            board.alleloBoard.removeEventListener('click');
+            const index = position.xyToPoint(x, y);
+            const result = position.play(index);
+            if (!result) {
+                alert('illegal');
+                return;
+            }
+            await drawPosition(board.alleloBoard, position, result);
+            if (!problem.answer || (problem.answer[0] == x && problem.answer[1] == y)) {
+                balloon.innerText = problem.explanation;
+                speechSynthesis.cancel();
+                speak(problem.explanation, 'ja', 'female');
+                document.querySelector('#next').style.display = 'inline';
+            } else {
+                const text = '残念。もう一度挑戦してください。';
+                balloon.innerText = text
+                speechSynthesis.cancel();
+                speak(text, 'ja', 'female');
+                await prepareProblem(problem);
+            }
+        });
+    }
 }
 
-document.querySelector('#next').addEventListener('click', function() {
-    if (index < problems.length) {
-        prepareProblem(problems[index]);
+document.querySelector('#next').addEventListener('click', async function() {
+    speechSynthesis.cancel();
+    if (index < problems.length - 1) {
+        await prepareProblem(problems[++index]);
     }
 }, false);
 let index = 0;
-prepareProblem(problems[index++]);
+prepareProblem(problems[index]);
