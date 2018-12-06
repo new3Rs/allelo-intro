@@ -5,6 +5,7 @@ const PASS = -1;
 const EMPTY = 0;
 const BLACK = 1;
 const WHITE = 2;
+const BAN = 3;
 
 /**
  * 相手のカラーを返す。
@@ -99,7 +100,7 @@ class GoPosition {
 
     stringAt(point) {
         const color = this.getState(point);
-        if (color === EMPTY) {
+        if (color === EMPTY || color === BAN) {
             return null;
         }
         const opponent = opponentOf(color);
@@ -125,7 +126,7 @@ class GoPosition {
                             this.marker1.mark(a);
                             if (state === opponent) {
                                 string.opponents.push(a);
-                            } else {
+                            } else if (state === EMPTY) {
                                 string.liberties.push(a);
                             }
                         }
@@ -162,7 +163,7 @@ class GoPosition {
                             this.marker1.mark(a);
                             if (state === BLACK) {
                                 empties.blacks.push(a);
-                            } else {
+                            } else if (state === WHITE) {
                                 empties.whites.push(a);
                             }
                         }
@@ -367,6 +368,9 @@ class GoPosition {
         for (let y = 1; y <= this.HEIGHT; y++) {
             for (let x = 1; x <= this.WIDTH; x++) {
                 switch (this.getState(this.xyToPoint(x, y))) {
+                    case BAN:
+                        string += '#';
+                        break;
                     case EMPTY:
                         string += '.';
                         break;
@@ -800,25 +804,27 @@ class AlleloBoardElement extends HTMLElement {
     }
     .container {
         position: relative;
+        padding: 10px;
     }
     canvas {
         display: block; /* デフォルトのinlineのままだとcanvasの下に隙間が入る */
     }
     #goban {
         position: relative;
-        background-image: url(data:image/png;base64,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);
-        background-color: rgb(196, 127, 51);
     }
-    #territory, #leaves, #stones {
+    #territory, #leaves, #stones, #bans {
         position: absolute;
-        top: 0px;
+        top: 10px; /* .containerのpaddingと同じ値 TODO リファクタリング */
     }
     svg * {
         width: 100%;
         height: 100%;
     }
+    #bans {
+        pointer-events: none;
+    }
 </style>
-<div class="container">
+<div class="container", style="background-color: orange;">
     <canvas id="goban"></canvas>
     <svg id="territory" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
         <defs>
@@ -864,6 +870,7 @@ class AlleloBoardElement extends HTMLElement {
         </defs>
     </svg>
     <canvas id="stones"></canvas>
+    <canvas id="bans"></canvas>
 </div>
 <script id="vs" type="x-shader/x-vertex">
     attribute vec2 position;
@@ -967,25 +974,45 @@ class AlleloBoardElement extends HTMLElement {
         );
     }
 
-    initialize(stoneSize, boardWidth, boardHeight) {
-        const goban = this.shadowRoot.querySelector('#goban');
+    drawGround(goban, stoneSize) {
         const ctx = goban.getContext('2d');
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgb(0, 0, 0)';
-        goban.width = stoneSize * boardWidth;
-        goban.height = stoneSize * boardHeight;
         const halfSize = stoneSize / 2;
-        function drawIntersections() {
-            for (let y = halfSize; y < goban.height; y += stoneSize) {
-                for (let x = halfSize; x < goban.width; x += stoneSize) {
-                    ctx.beginPath();
-                    ctx.arc(x, y, halfSize / 20, 0, Math.PI*2, false);
-                    ctx.fill();
+        const groundImage = new Image();
+        groundImage.onload = () => {
+            // dataURLでも画像がロードされるまでに時間差がある模様
+            // ここで勝利しないとgroundPatternが真っ黒。
+            const groundPattern = ctx.createPattern(groundImage, 'repeat');
+            function drawIntersections() {
+                for (let y = halfSize; y < goban.height; y += stoneSize) {
+                    for (let x = halfSize; x < goban.width; x += stoneSize) {
+                        ctx.fillStyle = 'rgb(196, 127, 51)';
+                        ctx.fillRect(x - halfSize, y - halfSize, stoneSize, stoneSize);
+                        ctx.fillStyle = groundPattern;
+                        ctx.fillRect(x - halfSize, y - halfSize, stoneSize, stoneSize);
+                        ctx.beginPath();
+                        ctx.fillStyle = 'black';
+                        ctx.arc(x, y, halfSize / 20, 0, Math.PI*2, false);
+                        ctx.fill();
+                    }
                 }
             }
-        }
-        //drawLines();
-        drawIntersections();
+            //drawLines();
+            drawIntersections.call(this);
+            if (this.onready) {
+                this.onready();
+            }
+        };
+        groundImage.src = 'data:image/png;base64,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';
+    }
+
+    initialize(stoneSize, boardWidth, boardHeight) {
+        const goban = this.shadowRoot.querySelector('#goban');
+        goban.width = stoneSize * boardWidth;
+        goban.height = stoneSize * boardHeight;
+        this.drawGround(goban, stoneSize);
+
         const leaves = this.shadowRoot.querySelector('#leaves');
         leaves.setAttribute('width', `${goban.width}px`);
         leaves.setAttribute('height', `${goban.height}px`);
@@ -1015,7 +1042,22 @@ class AlleloBoardElement extends HTMLElement {
                 territory.appendChild(karakusa);
             }
         }
+        const bans = this.shadowRoot.querySelector('#bans');
+        bans.width = goban.width;
+        bans.height = goban.height;
         this.alleloBoard = new AlleloBoard(stoneSize, boardWidth, boardHeight, this.shadowRoot);
+    }
+
+    setBans(bans) {
+        const canvas = this.shadowRoot.querySelector('#bans');
+        const stoneSize = canvas.width / parseInt(this.dataset.width);
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const background = this.shadowRoot.querySelector('.container').style.backgroundColor;
+        for (const ban of bans) {
+            ctx.fillStyle = background;
+            ctx.fillRect((ban[0] - 1) * stoneSize, (ban[1] - 1) * stoneSize, stoneSize, stoneSize);
+        }
     }
 }
 
@@ -1027,17 +1069,17 @@ const problems = [{
     stoneSize: 100,
     width: 3,
     height: 3,
-    question: '茶色の地面の中に黒い点が並んでいます。どれかをタッチしてみましょう。',
-    explanation: 'お見事！\nタッチした場所に太い幹が成長して葉っぱがつきました。\n葉っぱは何枚つきましたか？場所によって4枚だったり3枚だったり2枚だったりします。'
+    question: '茶色の地面の中に黒い点が並んでいます。どれかをクリックしてみましょう。',
+    explanation: 'お見事！\nクリックした場所に太い幹が成長して葉っぱがつきました。\n葉っぱは何枚つきましたか？場所によって4枚だったり3枚だったり2枚だったりします。'
 }, {
-    question: 'さっきとは違う場所をタッチしてみましょう。',
+    question: 'さっきとは違う場所をクリックしてみましょう。',
     explanation: '今度は明るい緑の幹と葉が生えましたね。アレロは、二人が濃い緑と明るい緑それぞれを担当して、２種類の植物を交互に植えて戦うゲームです。'
 }, {
     question: '配置が変わりました。\n地面には濃い緑と明るい緑の幹がひとつずつあります。次は濃い緑の番です。既に植えてある濃い緑の上下左右のどこかに植えてみてください。',
     blacks: [[2,2]],
     whites: [[1,1]],
     answer: [[1,2],[3,2],[2,1],[2,3]],
-    explanation: 'お見事！\n隣同士だと幹がくっつきくことに注意してください。ゲームの戦略を考えるのに大切な要素です。'
+    explanation: 'お見事！\n隣同士だと幹がくっつくことに注意してください。ゲームの戦略を考えるのに大切な要素です。'
 }, {
     question: 'また配置が変わりました。\n地面には濃い緑の幹がひとつと明るい緑の幹がふたつあります。左上の明るい緑には葉が一枚しか残っていません。\n次は濃い緑の番です。左上の明るい緑の最後の一枚の葉を濃い緑で消してみてください。',
     blacks: [[1,2]],
@@ -1045,11 +1087,11 @@ const problems = [{
     answer: [[2,1]],
     explanation: 'お見事！\n葉のなくなった明るい緑は枯れてしまい、濃い緑で囲われた場所には濃い緑の芽が出ました。\n最初は明るい緑が多かったのに濃い緑のほうが多くなりました。\nアレロは、こうして自分の緑を相手よりたくさん植えたほうが勝ちのゲームです。'
 }, {
-    question: 'ではお友達とゲームをしてみましょう。\n地面をちょっと広くしました。',
+    question: 'ではお友達とゲームをしてみましょう。\n地面をちょっと広くしました。そして中央はどちらも緑を植えられない場所です。\nさあ頑張ってたくさん植えてください。',
     stoneSize: 100,
     width: 5,
     height: 5,
-    obs: [[3,3]],
+    bans: [[3,3]],
     keep: true
 }];
 
@@ -1189,6 +1231,11 @@ async function prepareProblem(problem) {
             board.remove();
         }
         board = document.createElement('allelo-board');
+        if (problem.bans) {
+            board.onready = function() {
+                board.setBans(problem.bans);
+            };
+        }
         container.appendChild(board);
         if (problem.width && problem.height) {
             position = new GoPosition(problem.width, problem.height);
@@ -1250,15 +1297,17 @@ async function prepareProblem(problem) {
                 return;
             }
             await drawPosition(board.alleloBoard, position, result);
-            if (!problem.answer || (problem.answer.some(e => e[0] == x && e[1] == y))) {
-                speechSynthesis.cancel();
-                balloon.innerText = problem.explanation;
-                document.querySelector('#next').style.display = 'inline';
-                try {
-                    await speak(problem.explanation, 'ja', 'female');
-                } catch (e) {}
-            } else if (!problem.keep) {
-                await tryAgain();
+            if (!problem.keep) {
+                if (!problem.answer || (problem.answer.some(e => e[0] == x && e[1] == y))) {
+                    speechSynthesis.cancel();
+                    balloon.innerText = problem.explanation;
+                    document.querySelector('#next').style.display = 'inline';
+                    try {
+                        await speak(problem.explanation, 'ja', 'female');
+                    } catch (e) {}
+                } else {
+                    await tryAgain();
+                }
             }
         });
     }
@@ -1274,5 +1323,9 @@ document.querySelector('#next').addEventListener('click', async function() {
         await prepareProblem(problems[++index]);
     }
 }, false);
+
+if (!/Chrome/.test(navigator.userAgent)) {
+    alert("Google Chromeをお使いください_o_");
+}
 let index = 0;
 prepareProblem(problems[index]);

@@ -46,6 +46,11 @@ async function prepareProblem(problem) {
             board.remove();
         }
         board = document.createElement('allelo-board');
+        if (problem.bans) {
+            board.onready = function() {
+                board.setBans(problem.bans);
+            }
+        }
         container.appendChild(board);
         if (problem.width && problem.height) {
             position = new GoPosition(problem.width, problem.height);
@@ -107,15 +112,17 @@ async function prepareProblem(problem) {
                 return;
             }
             await drawPosition(board.alleloBoard, position, result);
-            if (!problem.answer || (problem.answer.some(e => e[0] == x && e[1] == y))) {
-                speechSynthesis.cancel();
-                balloon.innerText = problem.explanation;
-                document.querySelector('#next').style.display = 'inline';
-                try {
-                    await speak(problem.explanation, 'ja', 'female');
-                } catch (e) {}
-            } else if (!problem.keep) {
-                await tryAgain();
+            if (!problem.keep) {
+                if (!problem.answer || (problem.answer.some(e => e[0] == x && e[1] == y))) {
+                    speechSynthesis.cancel();
+                    balloon.innerText = problem.explanation;
+                    document.querySelector('#next').style.display = 'inline';
+                    try {
+                        await speak(problem.explanation, 'ja', 'female');
+                    } catch (e) {}
+                } else {
+                    await tryAgain();
+                }
             }
         });
     }
@@ -131,5 +138,9 @@ document.querySelector('#next').addEventListener('click', async function() {
         await prepareProblem(problems[++index]);
     }
 }, false);
+
+if (!/Chrome/.test(navigator.userAgent)) {
+    alert("Google Chromeをお使いください_o_");
+}
 let index = 0;
 prepareProblem(problems[index]);
