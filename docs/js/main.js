@@ -1088,7 +1088,7 @@ const problems = [{
     answer: [[2,1]],
     explanation: 'お見事！\n葉のなくなった明るい緑は枯れてしまい、濃い緑で囲われた場所には濃い緑の芽が出ました。\n最初は明るい緑が多かったのに濃い緑のほうが多くなりました。\nアレロは、こうして自分の緑を相手よりたくさん植えたほうが勝ちのゲームです。'
 }, {
-    question: 'ではお友達とゲームをしてみましょう。\n地面をちょっと広くしました。そして中央はどちらも緑を植えられない場所です。\nさあ頑張って枯らされないようにたくさん植えてください。',
+    question: 'ではお友達とゲームをしてみましょう。\n地面をちょっと広くしました。そして中央はどちらも緑を植えられない場所です。\nさあ頑張って、枯らされないようにたくさん植えてください。',
     stoneSize: 100,
     width: 5,
     height: 5,
@@ -1250,6 +1250,11 @@ async function prepareProblem(problem) {
     }
     if (problem.height) {
         board.dataset.height = problem.height;
+    }
+    if (problem.bans) {
+        for (const ban of problem.bans) {
+            position.setState(position.xyToPoint(ban[0], ban[1]), BAN);
+        }
     }
     if (problem.blacks || problem.whites) {
         position.clear();

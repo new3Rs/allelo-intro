@@ -6,7 +6,7 @@
  * @copyright 2018 ICHIKAWA, Yuji (New 3 Rs)
  * @license MIT
  */
-import { GoPosition, BLACK, WHITE } from 'allelo-board';
+import { GoPosition, BLACK, WHITE, BAN } from 'allelo-board';
 import { problems } from './problems.js';
 import { speak } from './speech.js';
 
@@ -64,6 +64,11 @@ async function prepareProblem(problem) {
     }
     if (problem.height) {
         board.dataset.height = problem.height;
+    }
+    if (problem.bans) {
+        for (const ban of problem.bans) {
+            position.setState(position.xyToPoint(ban[0], ban[1]), BAN);
+        }
     }
     if (problem.blacks || problem.whites) {
         position.clear();
