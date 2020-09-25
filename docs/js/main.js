@@ -380,7 +380,6 @@ class GoPosition {
                     case WHITE:
                         string += 'O';
                         break;
-                    default:
                 }
             }
             string += '\n';

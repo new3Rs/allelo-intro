@@ -97,7 +97,7 @@
    * http://mongodb.github.io/node-mongodb-native/api-bson-generated/objectid.html#objectid-isvalid
    */
   ObjectID.isValid = function(objectid) {
-    if(!objectid) return false;
+    if(!objectid || (typeof objectid !== 'string' && (typeof objectid !== 'object' || Array.isArray(objectid) || typeof objectid.toString !== 'function'))) return false;
 
     //call .toString() to get the hex if we're
     // working with an instance of ObjectID
@@ -213,13 +213,15 @@
     return out;
   }
 
+  var inspect = (Symbol && Symbol.for('nodejs.util.inspect.custom')) || 'inspect';
+
   /**
    * Converts to a string representation of this Id.
    *
    * @return {String} return the 24 byte hex string representation.
    * @api private
    */
-  ObjectID.prototype.inspect = function() { return "ObjectID("+this+")" };
+  ObjectID.prototype[inspect] = function() { return "ObjectID("+this+")" };
   ObjectID.prototype.toJSON = ObjectID.prototype.toHexString;
   ObjectID.prototype.toString = ObjectID.prototype.toHexString;
 
@@ -1615,7 +1617,7 @@
           this.nodesLength += 1;
 
           const node = this.nodes[nodeId];
-          node.initialize(hash, b.moveNumber, b.candidates(), prob, value, COLLISION_DETECT && b.toString());
+          node.initialize(hash, b.moveNumber, b.candidates(), prob, value, COLLISION_DETECT );
           return nodeId;
       }
 
@@ -1780,8 +1782,8 @@
        * @param {bool} random
        * @returns {Float32Array[]}
        */
-      async evaluate(b, random$$1 = true) {
-          let [prob, value] = await b.evaluate(this.nn, random$$1);
+      async evaluate(b, random = true) {
+          let [prob, value] = await b.evaluate(this.nn, random);
           if (this.evaluatePlugin) {
               prob = this.evaluatePlugin(b, prob);
           }
